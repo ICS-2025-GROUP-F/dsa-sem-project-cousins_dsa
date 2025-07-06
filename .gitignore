@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+venv/
+.env
+.idea/
+.vscode/
+*.db
+initialize.ps1
+demo/*.mp4
