@@ -3,9 +3,9 @@ from tkinter import messagebox, simpledialog
 
 from src.model.song import Song
 from src.ds.queue_create import SongQueue
-from src.ds.read import insert, inorder, search_by_title, read_song_data
-from src.ds.update import SongTable
-from src.ds.delete import DeleteStack
+from src.ds.bst_read import insert, inorder, search_by_title, read_song_data
+from src.ds.hashtable_update import SongTable
+from src.ds.stack_delete import DeleteStack
 
 class MediaPlayerUI:
     def __init__(self, root):
