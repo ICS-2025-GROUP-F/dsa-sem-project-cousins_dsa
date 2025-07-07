@@ -72,7 +72,7 @@ class MediaPlayerUI:
             new_id = len(read_song_data()) + 1
             song = Song(new_id, title, artist, album)
             self.song_queue.enqueue_song(song)
-            self.status_label.config(text=f"✅ Queued '{title}' for addition.")
+            self.status_label.config(text=f" Queued '{title}' for addition.")
             self.entry_title.delete(0, tk.END)
             self.entry_artist.delete(0, tk.END)
             self.entry_album.delete(0, tk.END)
@@ -111,7 +111,7 @@ class MediaPlayerUI:
         success = self.song_table.update_song(song_id, title, artist, album)
 
         if success:
-            self.status_label.config(text=f"✅ Song {song_id} updated.")
+            self.status_label.config(text=f" Song {song_id} updated.")
         else:
             messagebox.showerror("Update Failed", f"Song ID {song_id} not found.")
 
@@ -125,7 +125,7 @@ class MediaPlayerUI:
             self.delete_stack.push_song(song)
             from src.db.database import delete_song_from_db
             delete_song_from_db(song_id)
-            self.status_label.config(text=f"❌ Song '{song.title}' deleted and pushed to stack.")
+            self.status_label.config(text=f" Song '{song.title}' deleted and pushed to stack.")
         else:
             messagebox.showerror("Not Found", f"Song ID {song_id} not found.")
 
