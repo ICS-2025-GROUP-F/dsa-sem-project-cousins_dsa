@@ -1,57 +1,47 @@
 import sqlite3
 
-class Node:
-    def __init__(self, key):
-        self.right = None
+class BSTNode:
+    def __init__(self, song):
+        self.song = song
         self.left = None
-        self.value = key
+        self.right = None
 
-def insert(root, key):
-    if root is None:
-        return Node(key)
-    elif root.value["title"] == key["title"]:
-        return root  # No duplicates
-    elif root.value["title"] < key["title"]:
-        root.right = insert(root.right, key)
-    else:
-        root.left = insert(root.left, key)
-    return root 
+class SongBST:
+    def __init__(self):
+        self.root = None
 
-def inorder(root):
-    if root:
-        inorder(root.left)
-        print(f"Title: {root.value['title']}, Artist: {root.value['artist']}")
-        inorder(root.right)
-        
-def search_by_title(root, title):
-    if root is None:
-        return None
-    if root.value["title"] == title:
-        return root.value
-    elif title < root.value["title"]:
-        return search_by_title(root.left, title)
-    else:
-        return search_by_title(root.right, title)
+    def insert(self, song):
+        def _insert(root, song):
+            if root is None:
+                return BSTNode(song)
+            elif root.song["title"] == song["title"]:
+                return root
+            elif root.song["title"] < song["title"]:
+                root.right = _insert(root.right, song)
+            else:
+                root.left = _insert(root.left, song)
+            return root
 
-def read_song_data():
-    conn = sqlite3.connect("songs.db")
-    cursor = conn.cursor()
-    
-   
-    cursor.execute("SELECT title, artist, location FROM songs")
-    rows = cursor.fetchall()
+        self.root = _insert(self.root, song)
 
-    conn.close()
+    def search_by_title(self, title):
+        def _search(root, title):
+            if root is None:
+                return None
+            if root.song["title"] == title:
+                return root.song
+            elif title < root.song["title"]:
+                return _search(root.left, title)
+            else:
+                return _search(root.right, title)
 
-    return [{"title": row[0], "artist": row[1],"location":row[2]} for row in rows]
+        return _search(self.root, title)
 
-# Example usage:
-if __name__ == "__main__":
-    songs = read_song_data()
+    def inorder_traversal(self):
+        def _inorder(root):
+            if root:
+                _inorder(root.left)
+                print(f"Title: {root.song['title']}, Artist: {root.song['artist']}")
+                _inorder(root.right)
 
-    root = None
-    for song in songs:
-        root = insert(root, song)
-
-    print("All songs in order:")
-    inorder(root)
+        _inorder(self.root)
