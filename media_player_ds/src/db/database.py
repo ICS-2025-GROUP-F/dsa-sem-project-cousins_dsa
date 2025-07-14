@@ -8,8 +8,26 @@ def init_db():
 
 def get_all_songs():
     """Retrieve all songs from the database"""
-    pass  # TODO: Return list of Song objects
+    connection = sqlite3.connect(DB_PATH)
+    cursor = connection.cursor()
 
+    cursor.execute("SELECT id, title, artist, album, year FROM songs")
+    rows = cursor.fetchall()
+
+    connection.close()
+
+    songs = []
+    for row in rows:
+        song = {
+            "id": row[0],
+            "title": row[1],
+            "artist": row[2],
+            "album": row[3],
+            "year": row[4]
+        }
+        songs.append(song)
+
+    return songs
 def insert_song_to_db(song):
     """Insert a new song into the DB"""
     pass  # TODO: Accept a Song object and insert into table
