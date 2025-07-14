@@ -2,7 +2,6 @@ from datetime import datetime
 
 class Song:
     """Enhanced Song data model"""
-    
     def __init__(self, song_id=None, title="", artist="", album="", duration=0,
                  file_path="", genre="", year=None, created_at=None):
         self.id = song_id
@@ -33,6 +32,4 @@ class Song:
             "genre": self.genre,
             "file_path": self.file_path
         }
-
-
 
