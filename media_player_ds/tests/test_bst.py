@@ -1,11 +1,37 @@
 import pytest
 from src.ds.bst_read import SongBST
 from src.model.song import Song
-
+from src.db.database import get_all_songs
 def test_insert_and_search():
-    # TODO: Insert songs into BST and search by title
-    pass
+    bst = SongBST()
 
-def test_inorder_traversal():
-    # TODO: Validate sorted traversal of song titles
-    pass
+    all_songs = get_all_songs()
+
+    for s in all_songs:
+        bst.insert(s)
+
+    title_to_search = all_songs[0]["title"]
+    found_song = bst.search_by_title(title_to_search)
+
+    assert found_song is not None
+    assert found_song["title"] == title_to_search
+    assert "artist" in found_song
+
+
+def test_inorder_traversal(capsys):
+    bst = SongBST()
+
+    all_songs = get_all_songs()
+
+    for s in all_songs:
+        bst.insert(s)
+
+    bst.inorder_traversal()
+
+    captured = capsys.readouterr()
+    output_lines = captured.out.strip().split("\n")
+
+    titles_from_bst = [line.split(": ")[1].split(",")[0] for line in output_lines]
+    expected_titles = sorted([s["title"] for s in all_songs])
+
+    assert titles_from_bst == expected_titles
