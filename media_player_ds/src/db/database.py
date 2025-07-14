@@ -130,6 +130,27 @@ def get_song_by_id(song_id: int) -> Optional[Song]:
 
 
 def insert_song_to_db(song: Song) -> bool:
+    connection = sqlite3.connect(DB_PATH)
+    cursor = connection.cursor()
+
+    cursor.execute("SELECT id, title, artist, album, year FROM songs")
+    rows = cursor.fetchall()
+
+    connection.close()
+
+    songs = []
+    for row in rows:
+        song = {
+            "id": row[0],
+            "title": row[1],
+            "artist": row[2],
+            "album": row[3],
+            "year": row[4]
+        }
+        songs.append(song)
+
+    return songs
+def insert_song_to_db(song):
     """Insert a new song into the DB"""
     try:
         conn = sqlite3.connect(DB_PATH)
