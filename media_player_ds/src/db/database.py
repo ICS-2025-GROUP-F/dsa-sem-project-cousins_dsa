@@ -209,33 +209,26 @@ def update_song_in_db(song: Song) -> bool:
         if conn:
             conn.close()
 
-
-def delete_song_from_db(song_id: int) -> bool:
+def delete_song_from_db(song_id):
     """Delete a song from the DB by ID"""
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect("songs.db")  
         cursor = conn.cursor()
 
-        cursor.execute('SELECT title, artist FROM songs WHERE id = ?', (song_id,))
-        song_info = cursor.fetchone()
+        # DELETE command
+        cursor.execute("DELETE FROM songs WHERE id = ?", (song_id,))
 
-        if not song_info:
-            print(f"No song found with ID: {song_id}")
-            return False
+        # Check if a song was deleted
+        if cursor.rowcount == 0:
+            print(f"No song found with ID {song_id}.")
+        else:
+            print(f"Song with ID {song_id} deleted from database.")
 
-        cursor.execute('DELETE FROM songs WHERE id = ?', (song_id,))
         conn.commit()
-
-        print(f"Successfully deleted song: {song_info[0]} - {song_info[1]}")
-        return True
-
     except sqlite3.Error as e:
-        print(f"Error deleting song: {e}")
-        return False
+        print(f"Database error: {e}")
     finally:
-        if conn:
-            conn.close()
-
+        conn.close()
 
 def search_songs(query: str) -> List[Song]:
     """Search songs by title or artist"""
