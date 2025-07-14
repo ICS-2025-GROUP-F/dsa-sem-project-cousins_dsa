@@ -1,4 +1,5 @@
 import sqlite3
+from src.model.song import Song
 from datetime import datetime
 from typing import List, Optional
 
@@ -155,7 +156,6 @@ def insert_song_to_db(song):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-
         cursor.execute('''
             INSERT INTO songs (title, artist, album, duration, file_path, genre, year)
             VALUES (?, ?, ?, ?, ?, ?, ?)
