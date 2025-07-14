@@ -1,31 +1,9 @@
 import sqlite3
-from src.model.song import Song
 from datetime import datetime
 from typing import List, Optional
+from src.model.song import Song
 
 DB_PATH = "songs.db"
-
-class Song:
-    """Song data model"""
-
-    def __init__(self, song_id=None, title="", artist="", album="", duration=0,
-                 file_path="", genre="", year=None, created_at=None):
-        self.id = song_id
-        self.title = title
-        self.artist = artist
-        self.album = album
-        self.duration = duration  # in seconds
-        self.file_path = file_path
-        self.genre = genre
-        self.year = year
-        self.created_at = created_at or datetime.now()
-
-    def __str__(self):
-        return f"{self.title} - {self.artist}"
-
-    def __repr__(self):
-        return f"Song(id={self.id}, title='{self.title}', artist='{self.artist}')"
-
 
 def init_db():
     """Initialize SQLite DB and create songs table if not exists"""
@@ -56,7 +34,6 @@ def init_db():
         if conn:
             conn.close()
 
-
 def get_all_songs() -> List[Song]:
     """Retrieve all songs from the database"""
     songs = []
@@ -77,10 +54,10 @@ def get_all_songs() -> List[Song]:
                 song_id=row[0],
                 title=row[1],
                 artist=row[2],
-                album=row[3],
-                duration=row[4],
-                file_path=row[5],
-                genre=row[6],
+                album=row[3] or "",
+                duration=row[4] or 0,
+                file_path=row[5] or "",
+                genre=row[6] or "",
                 year=row[7],
                 created_at=row[8]
             )
@@ -93,7 +70,6 @@ def get_all_songs() -> List[Song]:
             conn.close()
 
     return songs
-
 
 def get_song_by_id(song_id: int) -> Optional[Song]:
     """Retrieve a specific song by ID"""
@@ -113,10 +89,10 @@ def get_song_by_id(song_id: int) -> Optional[Song]:
                 song_id=row[0],
                 title=row[1],
                 artist=row[2],
-                album=row[3],
-                duration=row[4],
-                file_path=row[5],
-                genre=row[6],
+                album=row[3] or "",
+                duration=row[4] or 0,
+                file_path=row[5] or "",
+                genre=row[6] or "",
                 year=row[7],
                 created_at=row[8]
             )
@@ -129,33 +105,12 @@ def get_song_by_id(song_id: int) -> Optional[Song]:
 
     return None
 
-
 def insert_song_to_db(song: Song) -> bool:
-    connection = sqlite3.connect(DB_PATH)
-    cursor = connection.cursor()
-
-    cursor.execute("SELECT id, title, artist, album, year FROM songs")
-    rows = cursor.fetchall()
-
-    connection.close()
-
-    songs = []
-    for row in rows:
-        song = {
-            "id": row[0],
-            "title": row[1],
-            "artist": row[2],
-            "album": row[3],
-            "year": row[4]
-        }
-        songs.append(song)
-
-    return songs
-def insert_song_to_db(song):
     """Insert a new song into the DB"""
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
+        
         cursor.execute('''
             INSERT INTO songs (title, artist, album, duration, file_path, genre, year)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -174,7 +129,6 @@ def insert_song_to_db(song):
     finally:
         if conn:
             conn.close()
-
 
 def update_song_in_db(song: Song) -> bool:
     """Update an existing song in the DB"""
@@ -209,26 +163,38 @@ def update_song_in_db(song: Song) -> bool:
         if conn:
             conn.close()
 
-def delete_song_from_db(song_id):
+def delete_song_from_db(song_id: int) -> bool:
     """Delete a song from the DB by ID"""
     try:
-        conn = sqlite3.connect("songs.db")  
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
+
+        # Get song info before deleting for confirmation
+        cursor.execute('SELECT title, artist FROM songs WHERE id = ?', (song_id,))
+        song_info = cursor.fetchone()
+
+        if not song_info:
+            print(f"No song found with ID {song_id}.")
+            return False
 
         # DELETE command
         cursor.execute("DELETE FROM songs WHERE id = ?", (song_id,))
-
-        # Check if a song was deleted
-        if cursor.rowcount == 0:
-            print(f"No song found with ID {song_id}.")
-        else:
+        
+        # Verify deletion
+        if cursor.rowcount > 0:
+            conn.commit()
             print(f"Song with ID {song_id} deleted from database.")
-
-        conn.commit()
+            return True
+        else:
+            print(f"Failed to delete song with ID {song_id}.")
+            return False
+            
     except sqlite3.Error as e:
         print(f"Database error: {e}")
+        return False
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 def search_songs(query: str) -> List[Song]:
     """Search songs by title or artist"""
@@ -251,10 +217,10 @@ def search_songs(query: str) -> List[Song]:
                 song_id=row[0],
                 title=row[1],
                 artist=row[2],
-                album=row[3],
-                duration=row[4],
-                file_path=row[5],
-                genre=row[6],
+                album=row[3] or "",
+                duration=row[4] or 0,
+                file_path=row[5] or "",
+                genre=row[6] or "",
                 year=row[7],
                 created_at=row[8]
             )
@@ -268,44 +234,49 @@ def search_songs(query: str) -> List[Song]:
 
     return songs
 
+# Test functionality
 if __name__ == "__main__":
+    print("Testing database functionality...")
+    
     # Initialize database
     init_db()
-
+    
+    # Create test songs
     song1 = Song(
         title="Bohemian Rhapsody",
         artist="Queen",
         album="A Night at the Opera",
         duration=355,
-        file_path="/music/queen/bohemian_rhapsody.mp3",
         genre="Rock",
         year=1975
     )
-
+    
     song2 = Song(
         title="Hotel California",
         artist="Eagles",
         album="Hotel California",
         duration=391,
-        file_path="/music/eagles/hotel_california.mp3",
         genre="Rock",
         year=1976
     )
-
+    
+    # Test insert
+    print("\n--- Testing Insert ---")
     insert_song_to_db(song1)
     insert_song_to_db(song2)
-
+    
+    # Test retrieve all
+    print("\n--- Testing Retrieve All ---")
     all_songs = get_all_songs()
-    print(f"\nAll songs in database ({len(all_songs)}):")
+    print(f"Found {len(all_songs)} songs:")
     for song in all_songs:
         print(f"  {song}")
-
+    
+    # Test delete
     if all_songs:
-        song_to_update = all_songs[0]
-        song_to_update.year = 1974  # Update year
-        update_song_in_db(song_to_update)
-
-    search_results = search_songs("Queen")
-    print(f"\nSearch results for 'Queen':")
-    for song in search_results:
-        print(f"  {song}")
+        print("\n--- Testing Delete ---")
+        first_song_id = all_songs[0].id
+        success = delete_song_from_db(first_song_id)
+        print(f"Delete success: {success}")
+    
+    print("\n✅ Database test completed!")

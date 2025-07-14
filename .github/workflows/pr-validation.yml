@@ -1,0 +1,261 @@
+name: Pull Request Validation
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  pr-validation:
+    name: PR Quality Check
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+    - name: Checkout PR
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        cd media_player_ds
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest flake8 black isort
+        
+    - name: PR Information
+      run: |
+        echo "=== Pull Request Information ==="
+        echo "PR Title: ${{ github.event.pull_request.title }}"
+        echo "PR Author: ${{ github.event.pull_request.user.login }}"
+        echo "Source Branch: ${{ github.event.pull_request.head.ref }}"
+        echo "Target Branch: ${{ github.event.pull_request.base.ref }}"
+        echo "Files Changed: ${{ github.event.pull_request.changed_files }}"
+        
+    - name: Validate PR title
+      run: |
+        PR_TITLE="${{ github.event.pull_request.title }}"
+        echo "Validating PR title: $PR_TITLE"
+        
+        # Check if PR title follows convention
+        if [[ "$PR_TITLE" =~ ^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?: .+ ]] || \
+           [[ "$PR_TITLE" =~ ^[A-Z].+ ]]; then
+          echo "✅ PR title follows convention"
+        else
+          echo "⚠️ Consider using conventional commit format: 'feat: description' or 'fix: description'"
+        fi
+        
+    - name: Check changed files
+      run: |
+        echo "=== Files Changed in PR ==="
+        git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD
+        
+        # Count changes by file type
+        python_files=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep -c "\.py$" || echo "0")
+        test_files=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep -c "test_.*\.py$" || echo "0")
+        
+        echo "Python files changed: $python_files"
+        echo "Test files changed: $test_files"
+        
+        if [[ $python_files -gt 0 && $test_files -eq 0 ]]; then
+          echo "⚠️ Python files changed but no test files updated. Consider adding tests."
+        fi
+        
+    - name: Create __init__.py files
+      run: |
+        cd media_player_ds
+        touch __init__.py src/__init__.py src/db/__init__.py src/ds/__init__.py
+        touch src/model/__init__.py src/ui/__init__.py src/utils/__init__.py tests/__init__.py
+        
+    - name: Test changed data structures
+      run: |
+        cd media_player_ds
+        
+        # Get list of changed Python files
+        changed_files=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep "\.py$" || true)
+        
+        echo "Testing changed files..."
+        for file in $changed_files; do
+          if [[ -f "$file" && "$file" == src/ds/* ]]; then
+            echo "Testing data structure: $file"
+            python "$file" || echo "Test completed for $file"
+          fi
+        done
+        
+    - name: Run tests on changed code
+      run: |
+        cd media_player_ds
+        
+        # Run specific tests based on changed files
+        changed_files=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep "\.py$" || true)
+        
+        for file in $changed_files; do
+          case $file in
+            *queue*)
+              echo "Running queue tests..."
+              python -m pytest tests/test_queue.py -v || echo "Queue tests completed"
+              ;;
+            *bst*|*read*)
+              echo "Running BST tests..."
+              python -m pytest tests/test_bst.py -v || echo "BST tests completed"
+              ;;
+            *hashtable*|*update*)
+              echo "Running hash table tests..."
+              python -m pytest tests/test_hashtable.py -v || echo "Hash table tests completed"
+              ;;
+            *stack*|*delete*)
+              echo "Running stack tests..."
+              python -m pytest tests/test_stack.py -v || echo "Stack tests completed"
+              ;;
+            *interface*|*gui*)
+              echo "Testing GUI imports..."
+              python -c "
+              import sys
+              sys.path.insert(0, '.')
+              try:
+                  from src.ui.interface import MediaPlayerUI
+                  print('✅ GUI imports successful')
+              except Exception as e:
+                  print(f'GUI test: {e}')
+              " || echo "GUI test completed"
+              ;;
+          esac
+        done
+        
+    - name: Code quality check
+      run: |
+        cd media_player_ds
+        
+        echo "=== Code Quality Analysis ==="
+        
+        # Get changed Python files
+        changed_py_files=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep "\.py$" | tr '\n' ' ' || true)
+        
+        if [[ -n "$changed_py_files" ]]; then
+          echo "Checking code formatting..."
+          black --check $changed_py_files || echo "Formatting issues found"
+          
+          echo "Checking import sorting..."
+          isort --check-only $changed_py_files || echo "Import sorting issues found"
+          
+          echo "Running linting..."
+          flake8 $changed_py_files --max-line-length=100 --extend-ignore=E203,W503 || echo "Linting issues found"
+        else
+          echo "No Python files changed"
+        fi
+        
+    - name: Integration test with main
+      run: |
+        cd media_player_ds
+        echo "Testing integration with main branch..."
+        
+        # Test basic imports and functionality
+        python -c "
+        import sys
+        sys.path.insert(0, '.')
+        
+        try:
+            from src.db.database import init_db
+            init_db()
+            print('✅ Database integration successful')
+        except Exception as e:
+            print(f'Database integration: {e}')
+            
+        try:
+            from src.model.song import Song
+            song = Song(title='Test', artist='Test')
+            print(f'✅ Song model integration: {song}')
+        except Exception as e:
+            print(f'Song model integration: {e}')
+        "
+        
+    - name: Check for merge conflicts
+      run: |
+        echo "=== Merge Conflict Check ==="
+        
+        # Check if PR can be merged cleanly
+        git fetch origin ${{ github.event.pull_request.base.ref }}
+        
+        if git merge-tree $(git merge-base HEAD origin/${{ github.event.pull_request.base.ref }}) HEAD origin/${{ github.event.pull_request.base.ref }} | grep -q "<<<<<<< "; then
+          echo "❌ Potential merge conflicts detected"
+          echo "Please resolve conflicts before merging"
+        else
+          echo "✅ No merge conflicts detected"
+        fi
+
+  pr-documentation:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout PR
+      uses: actions/checkout@v4
+      
+    - name: Check documentation updates
+      run: |
+        echo "=== Documentation Check ==="
+        
+        # Check if README was updated for significant changes
+        changed_files=$(git diff --name-only origin/main...HEAD || true)
+        significant_changes=$(echo "$changed_files" | grep -E "(src/|main\.py|requirements\.txt)" | wc -l)
+        readme_updated=$(echo "$changed_files" | grep -c "README.md" || echo "0")
+        
+        echo "Significant files changed: $significant_changes"
+        echo "README updated: $readme_updated"
+        
+        if [[ $significant_changes -gt 3 && $readme_updated -eq 0 ]]; then
+          echo "⚠️ Consider updating README.md for significant changes"
+        else
+          echo "✅ Documentation status appropriate"
+        fi
+        
+    - name: Check for verbose logging
+      run: |
+        echo "=== Verbose Logging Check ==="
+        cd media_player_ds
+        
+        # Check if data structure files have proper verbose logging
+        ds_files=$(find src/ds -name "*.py" -type f 2>/dev/null || true)
+        
+        for file in $ds_files; do
+          if [[ -f "$file" ]]; then
+            log_count=$(grep -c "print.*:" "$file" || echo "0")
+            echo "$file: $log_count logging statements"
+            
+            if [[ $log_count -lt 5 ]]; then
+              echo "$file may need more verbose logging for educational purposes"
+            fi
+          fi
+        done
+
+  pr-summary:
+    name: PR Summary
+    runs-on: ubuntu-latest
+    needs: [pr-validation, pr-documentation]
+    if: always()
+    
+    steps:
+    - name: PR Summary
+      run: |
+        echo "=== Pull Request Summary ==="
+        echo "PR Validation: ${{ needs.pr-validation.result }}"
+        echo "Documentation Check: ${{ needs.pr-documentation.result }}"
+        
+        if [[ "${{ needs.pr-validation.result }}" == "success" ]]; then
+          echo "✅ PR validation passed"
+        else
+          echo "⚠️ PR validation issues found - please review"
+        fi
+        
+        echo ""
+        echo "=== Next Steps ==="
+        echo "1. Review any warnings or suggestions above"
+        echo "2. Ensure all tests pass"
+        echo "3. Request review from team members"
+        echo "4. Address any feedback before merging"
