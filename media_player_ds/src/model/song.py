@@ -33,6 +33,3 @@ class Song:
             "genre": self.genre,
             "file_path": self.file_path
         }
-
-
-
