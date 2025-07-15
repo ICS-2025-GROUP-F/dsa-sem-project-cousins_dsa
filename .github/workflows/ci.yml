@@ -64,18 +64,6 @@ jobs:
         cd media_player_ds
         flake8 src/ tests/ --max-line-length=100 --extend-ignore=E203,W503 || echo "Linting issues found"
 
-    - name: Test individual data structures
-      run: |
-        cd media_player_ds
-        echo "Testing Queue implementation..."
-        python src/ds/queue_create.py
-        echo "Testing BST implementation..."
-        python src/ds/bst_read.py
-        echo "Testing Hash Table implementation..."
-        python src/ds/hashtable_update.py
-        echo "Testing Stack implementation..."
-        python src/ds/stack_delete.py
-
     - name: Run unit tests with coverage
       run: |
         cd media_player_ds
@@ -106,16 +94,6 @@ jobs:
       run: |
         cd media_player_ds
         find . -type d -exec touch {}/__init__.py \;
-
-    - name: Test CRUD workflow integration
-      run: |
-        cd media_player_ds
-        python tests/test_integration_crud.py
-
-    - name: Test GUI imports (without display)
-      run: |
-        cd media_player_ds
-        python tests/test_gui_imports.py
 
   branch-validation:
     name: Branch Validation

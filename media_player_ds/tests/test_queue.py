@@ -2,254 +2,130 @@ import pytest
 from src.ds.queue_create import SongQueue
 from src.model.song import Song
 
-def test_enqueue_song():
-    """Test enqueueing a single song to the queue"""
-    queue = SongQueue()
-
-    # Verify queue is initially empty
-    assert queue.size() == 0
-    assert queue.is_empty() == True
-
-    # Create a song with sample data
-    song = Song(
-        id="song_001",
-        title="Test Song",
-        artist="Test Artist",
-        album="Test Album",
-        duration=180,
-        file_path="/music/test_song.mp3"
-    )
-
-    # Enqueue the song
-    queue.enqueue(song)
-
-    # Assert queue size increased
-    assert queue.size() == 1
-    assert queue.is_empty() == False
-
-    # Verify the song can be peeked at without removing it
-    peeked_song = queue.peek()
-    assert peeked_song.id == "song_001"
-    assert peeked_song.title == "Test Song"
-    assert peeked_song.artist == "Test Artist"
-
-    # Verify queue size hasn't changed after peek
-    assert queue.size() == 1
-
-
-def test_enqueue_multiple_songs():
-    """Test enqueueing multiple songs"""
-    queue = SongQueue()
-
-    # Create multiple songs
-    songs = [
-        Song(id="song_001", title="Song 1", artist="Artist 1", album="Album 1", duration=120,
-             file_path="/music/song1.mp3"),
-        Song(id="song_002", title="Song 2", artist="Artist 2", album="Album 2", duration=150,
-             file_path="/music/song2.mp3"),
-        Song(id="song_003", title="Song 3", artist="Artist 3", album="Album 3", duration=200,
-             file_path="/music/song3.mp3")
-    ]
-
-    # Enqueue all songs
-    for song in songs:
-        queue.enqueue(song)
-
-    # Verify queue size
-    assert queue.size() == 3
-
-    # Verify FIFO order (first song added should be first to peek)
-    first_song = queue.peek()
-    assert first_song.id == "song_001"
-
-
-def test_process_queue():
-    """Test processing queue with multiple songs and simulating DB insertion"""
-    # Create queue and mock database
-    queue = SongQueue()
-    mock_db = MockDatabase()
-
-    # Create multiple songs to process
-    songs_to_add = [
-        Song(id="song_001", title="Rock Song", artist="Rock Artist", album="Rock Album", duration=240,
-             file_path="/music/rock.mp3"),
-        Song(id="song_002", title="Pop Song", artist="Pop Artist", album="Pop Album", duration=180,
-             file_path="/music/pop.mp3"),
-        Song(id="song_003", title="Jazz Song", artist="Jazz Artist", album="Jazz Album", duration=300,
-             file_path="/music/jazz.mp3"),
-        Song(id="song_004", title="Classical Song", artist="Classical Artist", album="Classical Album", duration=420,
-             file_path="/music/classical.mp3")
-    ]
-
-    # Enqueue all songs
-    for song in songs_to_add:
-        queue.enqueue(song)
-
-    # Verify initial state
-    assert queue.size() == 4
-    assert len(mock_db.songs) == 0
-
-    # Process the queue (simulate database insertions)
-    processed_songs = []
-    insertion_results = []
-
-    while not queue.is_empty():
-        # Dequeue song
-        song = queue.dequeue()
-        processed_songs.append(song)
-
-        # Simulate database insertion
-        success = mock_db.insert_song(song)
-        insertion_results.append(success)
-
-        # Simulate processing delay (in real scenario)
-        # time.sleep(0.1)  # Commented out for test speed
-
-    # Verify queue is now empty
-    assert queue.size() == 0
-    assert queue.is_empty() == True
-
-    # Verify all songs were processed
-    assert len(processed_songs) == 4
-    assert all(insertion_results)  # All insertions should succeed
-
-    # Verify songs were processed in FIFO order
-    expected_order = ["song_001", "song_002", "song_003", "song_004"]
-    actual_order = [song.id for song in processed_songs]
-    assert actual_order == expected_order
-
-    # Verify database contains all songs
-    assert len(mock_db.songs) == 4
-    assert all(song.id in mock_db.songs for song in songs_to_add)
-
-
-def test_process_queue_with_failures():
-    """Test processing queue with simulated database failures"""
-    queue = SongQueue()
-    mock_db = MockDatabase()
-
-    # Create songs, including one that will fail insertion
-    songs = [
-        Song(id="song_001", title="Valid Song 1", artist="Artist 1", album="Album 1", duration=180,
-             file_path="/music/valid1.mp3"),
-        Song(id="invalid_song", title="Invalid Song", artist="Artist 2", album="Album 2", duration=0,
-             file_path="/music/invalid.mp3"),  # Invalid duration
-        Song(id="song_003", title="Valid Song 2", artist="Artist 3", album="Album 3", duration=240,
-             file_path="/music/valid2.mp3")
-    ]
-
-    # Enqueue songs
-    for song in songs:
-        queue.enqueue(song)
-
-    # Process queue with error handling
-    processed_count = 0
-    failed_count = 0
-
-    while not queue.is_empty():
-        song = queue.dequeue()
-
-        try:
-            success = mock_db.insert_song(song)
-            if success:
-                processed_count += 1
-            else:
-                failed_count += 1
-        except Exception as e:
-            failed_count += 1
-            print(f"Failed to insert song {song.id}: {e}")
-
-    # Verify results
-    assert processed_count == 2  # Two valid songs
-    assert failed_count == 1  # One invalid song
-    assert len(mock_db.songs) == 2  # Only valid songs in database
-
-
-def test_queue_edge_cases():
-    """Test edge cases for queue operations"""
-    queue = SongQueue()
-
-    # Test dequeue on empty queue
-    with pytest.raises(IndexError):
-        queue.dequeue()
-
-    # Test peek on empty queue
-    with pytest.raises(IndexError):
-        queue.peek()
-
-    # Test enqueue None
-    with pytest.raises(ValueError):
-        queue.enqueue(None)
-
-    # Test enqueue invalid object
-    with pytest.raises(TypeError):
-        queue.enqueue("not a song object")
-
 
 class MockDatabase:
-    """Mock database for testing"""
-
+    """Mock database for simulating insertions"""
     def __init__(self):
         self.songs = {}
 
     def insert_song(self, song: Song) -> bool:
-        """Simulate database insertion"""
-        # Simulate validation failure
-        if song.duration <= 0:
-            raise ValueError(f"Invalid song duration: {song.duration}")
-
-        # Simulate duplicate key error
+        if not song or song.duration <= 0:
+            return False
         if song.id in self.songs:
             return False
-
-        # Simulate successful insertion
-        self.songs[song.id] = {
-            'title': song.title,
-            'artist': song.artist,
-            'album': song.album,
-            'duration': song.duration,
-            'file_path': song.file_path
-        }
+        self.songs[song.id] = song
         return True
 
-    def get_song(self, song_id: str) -> dict:
-        """Retrieve song from mock database"""
-        return self.songs.get(song_id)
 
-    def get_all_songs(self) -> dict:
-        """Get all songs from mock database"""
-        return self.songs.copy()
-
-
-# Additional helper test for queue operations
-def test_queue_operations():
-    """Test basic queue operations (enqueue, dequeue, peek)"""
+@pytest.fixture
+def queue_with_songs():
     queue = SongQueue()
+    songs = [
+        Song(song_id="song_001", title="Song 1", artist="Artist 1", duration=200),
+        Song(song_id="song_002", title="Song 2", artist="Artist 2", duration=220),
+        Song(song_id="song_003", title="Song 3", artist="Artist 3", duration=180)
+    ]
+    for song in songs:
+        queue.enqueue_song(song)
+    return queue, songs
 
-    # Test with single song
-    song1 = Song(id="test_1", title="Test 1", artist="Artist 1", album="Album 1", duration=120, file_path="/test1.mp3")
-    queue.enqueue(song1)
 
-    assert queue.size() == 1
-    assert queue.peek().id == "test_1"
+def test_enqueue_and_peek():
+    queue = SongQueue()
+    song = Song(song_id="s123", title="Test Song", artist="Tester", duration=210)
+    queue.enqueue_song(song)
 
-    dequeued = queue.dequeue()
-    assert dequeued.id == "test_1"
-    assert queue.size() == 0
+    assert queue.get_queue_size() == 1
+    assert not queue.is_empty()
 
-    # Test FIFO behavior with multiple songs
-    song2 = Song(id="test_2", title="Test 2", artist="Artist 2", album="Album 2", duration=150, file_path="/test2.mp3")
-    song3 = Song(id="test_3", title="Test 3", artist="Artist 3", album="Album 3", duration=180, file_path="/test3.mp3")
+    peeked = queue.peek_next()
+    assert peeked is not None
+    assert peeked.title == "Test Song"
+    assert peeked.artist == "Tester"
 
-    queue.enqueue(song2)
-    queue.enqueue(song3)
 
-    # First in, first out
-    assert queue.dequeue().id == "test_2"
-    assert queue.dequeue().id == "test_3"
+def test_dequeue_fifo(queue_with_songs):
+    queue, songs = queue_with_songs
+
+    first = queue.dequeue_song()
+    second = queue.dequeue_song()
+
+    assert first.title == songs[0].title
+    assert second.title == songs[1].title
+    assert queue.get_queue_size() == 1
+
+
+def test_process_queue_with_mock(monkeypatch):
+    queue = SongQueue()
+    db = MockDatabase()
+
+    songs = [
+        Song(song_id="s1", title="A", artist="X", duration=100),
+        Song(song_id="s2", title="B", artist="Y", duration=150)
+    ]
+
+    for song in songs:
+        queue.enqueue_song(song)
+
+    # Monkeypatch the insert_song_to_db import to use the mock
+    monkeypatch.setitem(__import__("sys").modules, "src.db.database", type("mock_module", (), {
+        "insert_song_to_db": db.insert_song
+    }))
+
+    # Process queue, internally uses db.insert_song
+    queue.process_queue()
+
+    assert db.songs["s1"].title == "A"
+    assert db.songs["s2"].title == "B"
     assert queue.is_empty()
 
 
-if __name__ == "__main__":
-    # Run tests if file is executed directly
-    pytest.main([__file__, "-v"])
+def test_clear_queue():
+    queue = SongQueue()
+    queue.enqueue_song(Song(song_id="x1", title="Clear Me", artist="A", duration=200))
+    assert queue.get_queue_size() == 1
+    queue.clear_queue()
+    assert queue.is_empty()
+
+
+def test_queue_edge_cases():
+    queue = SongQueue()
+
+    # Dequeue and peek from empty queue
+    assert queue.dequeue_song() is None
+    assert queue.peek_next() is None
+
+    # Clear already empty queue
+    queue.clear_queue()
+    assert queue.get_queue_size() == 0
+
+    # Process empty queue
+    queue.process_queue()  # Should not crash
+
+
+def test_view_queue_output(queue_with_songs, capsys):
+    queue, songs = queue_with_songs
+    queue.view_queue()
+    output = capsys.readouterr().out
+    for song in songs:
+        assert song.title in output
+        assert song.artist in output
+
+
+def test_enqueue_multiple_and_order():
+    queue = SongQueue()
+    s1 = Song(song_id="sA", title="Alpha", artist="A", duration=100)
+    s2 = Song(song_id="sB", title="Beta", artist="B", duration=110)
+    s3 = Song(song_id="sC", title="Gamma", artist="C", duration=120)
+
+    queue.enqueue_song(s1)
+    queue.enqueue_song(s2)
+    queue.enqueue_song(s3)
+
+    assert queue.get_queue_size() == 3
+    assert queue.peek_next().title == "Alpha"
+
+    assert queue.dequeue_song().title == "Alpha"
+    assert queue.dequeue_song().title == "Beta"
+    assert queue.dequeue_song().title == "Gamma"
+    assert queue.is_empty()
