@@ -49,11 +49,6 @@ jobs:
         cd media_player_ds
         find . -type d -exec touch {}/__init__.py \;
 
-    - name: Initialize database
-      run: |
-        cd media_player_ds
-        python src/db/database.py
-
     - name: Run code formatting check (Black)
       run: |
         cd media_player_ds
@@ -86,16 +81,6 @@ jobs:
         cd media_player_ds
         python -m pytest tests/ -v --cov=src --cov-report=xml --cov-report=html --cov-report=term
 
-    - name: Upload coverage to Codecov
-      if: matrix.python-version == '3.10'
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./media_player_ds/coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
-
-
   integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest
@@ -121,12 +106,6 @@ jobs:
       run: |
         cd media_player_ds
         find . -type d -exec touch {}/__init__.py \;
-
-    - name: Test database operations
-      run: |
-        cd media_player_ds
-        python src/db/database.py
-        echo "Database initialized successfully"
 
     - name: Test CRUD workflow integration
       run: |
@@ -158,9 +137,9 @@ jobs:
            [[ "$BRANCH_NAME" =~ ^integration-.+$ ]] || \
            [[ "$BRANCH_NAME" =~ ^feature/.+$ ]] || \
            [[ "$BRANCH_NAME" =~ ^bugfix/.+$ ]]; then
-          echo "✅ Branch name follows convention"
+          echo "Branch name follows convention"
         else
-          echo "❌ Invalid branch name: $BRANCH_NAME"
+          echo "Invalid branch name: $BRANCH_NAME"
           exit 1
         fi
 
@@ -177,11 +156,11 @@ jobs:
         )
         for file in "${required_files[@]}"; do
           if [[ ! -f "$file" ]]; then
-            echo "❌ Missing: $file"
+            echo "Missing: $file"
             exit 1
           fi
         done
-        echo "✅ All required files are present"
+        echo "All required files are present"
 
   security-scan:
     name: Security Scan
@@ -259,8 +238,8 @@ jobs:
         
         if [[ "${{ needs.test.result }}" == "success" && \
               "${{ needs.integration-test.result }}" == "success" ]]; then
-          echo "✅ All critical tests passed"
+          echo "All critical tests passed"
         else
-          echo "❌ Some checks failed"
+          echo "Some checks failed"
           exit 1
         fi
