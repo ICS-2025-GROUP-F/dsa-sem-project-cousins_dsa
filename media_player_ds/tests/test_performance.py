@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import time
 from memory_profiler import memory_usage
 from src.ds.stack_delete import DeleteStack
