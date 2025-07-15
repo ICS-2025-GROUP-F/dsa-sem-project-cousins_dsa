@@ -43,6 +43,8 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pytest pytest-cov pytest-mock flake8 black isort
+        
+    
 
     - name: Create __init__.py files
       run: |
@@ -63,6 +65,11 @@ jobs:
       run: |
         cd media_player_ds
         flake8 src/ tests/ --max-line-length=100 --extend-ignore=E203,W503 || echo "Linting issues found"
+
+    - name: Initialize database
+      run: |
+        cd media_player_ds
+        python src/db/database.py
 
     - name: Run unit tests with coverage
       run: |
