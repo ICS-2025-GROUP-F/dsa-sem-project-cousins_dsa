@@ -1,0 +1,3 @@
+pytest
+tk
+memory-profiler

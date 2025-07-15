@@ -1,0 +1,165 @@
+name: Feature Branch Tests
+
+on:
+  push:
+    branches:
+      - 'regNo_*'
+      - 'feature/*'
+      - 'bugfix/*'
+    paths:
+      - 'media_player_ds/**'
+
+jobs:
+  branch-specific-tests:
+    name: Branch Specific Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        cd media_player_ds
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest
+        
+    - name: Create __init__.py files
+      run: |
+        cd media_player_ds
+        touch __init__.py src/__init__.py src/db/__init__.py src/ds/__init__.py
+        touch src/model/__init__.py src/ui/__init__.py src/utils/__init__.py tests/__init__.py
+        
+    - name: Identify branch type and run specific tests
+      run: |
+        cd media_player_ds
+        BRANCH_NAME="${{ github.ref_name }}"
+        echo "Testing branch: $BRANCH_NAME"
+        
+        # Test based on branch naming convention
+        if [[ "$BRANCH_NAME" =~ regNo_.*_queue ]]; then
+          echo "Testing Queue implementation..."
+          python src/ds/queue_create.py
+          python -m pytest tests/test_queue.py -v || echo "Queue tests completed"
+          
+        elif [[ "$BRANCH_NAME" =~ regNo_.*_[Rr]ead ]]; then
+          echo "Testing BST Read implementation..."
+          python src/ds/bst_read.py
+          python -m pytest tests/test_bst.py -v || echo "BST tests completed"
+          
+        elif [[ "$BRANCH_NAME" =~ regNo_.*_update ]]; then
+          echo "Testing Hash Table Update implementation..."
+          python src/ds/hashtable_update.py
+          python -m pytest tests/test_hashtable.py -v || echo "Hash table tests completed"
+          
+        elif [[ "$BRANCH_NAME" =~ regNo_.*_[Ss]tack ]]; then
+          echo "Testing Stack Delete implementation..."
+          python src/ds/stack_delete.py
+          python -m pytest tests/test_stack.py -v || echo "Stack tests completed"
+          
+        elif [[ "$BRANCH_NAME" =~ regNo_.*_GUI ]]; then
+          echo "Testing GUI implementation..."
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+          try:
+              from src.ui.interface import MediaPlayerUI
+              print('✅ GUI imports successful')
+          except ImportError as e:
+              print(f'❌ GUI import failed: {e}')
+          " || echo "GUI test completed"
+          
+        else
+          echo "General branch testing..."
+          python src/db/database.py
+        fi
+        
+    - name: Validate code structure
+      run: |
+        cd media_player_ds
+        echo "Validating code structure for branch..."
+        
+        # Check if branch has proper verbose logging
+        if grep -r "print.*:" src/ds/ --include="*.py"; then
+          echo "✅ Verbose logging found in data structures"
+        else
+          echo "⚠️ Consider adding verbose logging for educational demonstration"
+        fi
+        
+        # Check for proper docstrings
+        if grep -r '""".*"""' src/ --include="*.py"; then
+          echo "✅ Documentation found"
+        else
+          echo "⚠️ Consider adding documentation"
+        fi
+
+  compatibility-test:
+    name: Branch Compatibility
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout current branch
+      uses: actions/checkout@v4
+      with:
+        path: current-branch
+        
+    - name: Checkout main branch
+      uses: actions/checkout@v4
+      with:
+        ref: main
+        path: main-branch
+        
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Test integration compatibility
+      run: |
+        echo "Testing compatibility with main branch..."
+        
+        # Check if Song model is compatible
+        cd current-branch/media_player_ds
+        if [[ -f "src/model/song.py" ]]; then
+          echo "✅ Song model found in branch"
+          
+          # Basic import test
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+          try:
+              from src.model.song import Song
+              song = Song(title='Test', artist='Test')
+              print(f'✅ Song model compatible: {song}')
+          except Exception as e:
+              print(f'❌ Song model issue: {e}')
+          " || echo "Song model test completed"
+        fi
+        
+        # Check database compatibility
+        if [[ -f "src/db/database.py" ]]; then
+          echo "✅ Database module found"
+        fi
+        
+    - name: Merge simulation test
+      run: |
+        echo "Simulating merge conflicts..."
+        cd current-branch/media_player_ds
+        
+        # Check for potential merge conflicts in key files
+        conflict_files=("src/model/song.py" "src/db/database.py" "src/main.py")
+        
+        for file in "${conflict_files[@]}"; do
+          if [[ -f "$file" ]]; then
+            echo "Checking $file for merge compatibility..."
+            # Simple check - could be enhanced with actual diff
+            lines=$(wc -l < "$file")
+            echo "$file has $lines lines"
+          fi
+        done

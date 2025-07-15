@@ -1,0 +1,264 @@
+name: Release and Deploy
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  create-release-artifacts:
+    name: Create Release Artifacts
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build wheel setuptools
+        
+    - name: Create project package
+      run: |
+        cd media_player_ds
+        
+        # Create setup.py for packaging
+        cat > setup.py << EOF
+        from setuptools import setup, find_packages
+        
+        with open("README.md", "r", encoding="utf-8") as fh:
+            long_description = fh.read()
+        
+        with open("requirements.txt", "r", encoding="utf-8") as fh:
+            requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+        
+        setup(
+            name="dsa-media-player",
+            version="${{ github.event.inputs.version || github.event.release.tag_name }}",
+            description="Media Player demonstrating Data Structures and Algorithms",
+            long_description=long_description,
+            long_description_content_type="text/markdown",
+            packages=find_packages(),
+            python_requires=">=3.8",
+            install_requires=requirements,
+            entry_points={
+                "console_scripts": [
+                    "dsa-media-player=src.main:main",
+                ],
+            },
+            classifiers=[
+                "Development Status :: 4 - Beta",
+                "Intended Audience :: Education",
+                "Topic :: Education",
+                "Topic :: Software Development :: Libraries :: Python Modules",
+                "Programming Language :: Python :: 3",
+                "Programming Language :: Python :: 3.8",
+                "Programming Language :: Python :: 3.9",
+                "Programming Language :: Python :: 3.10",
+                "Programming Language :: Python :: 3.11",
+            ],
+        )
+        EOF
+        
+    - name: Build package
+      run: |
+        cd media_player_ds
+        python -m build
+        
+    - name: Create release archive
+      run: |
+        # Create comprehensive release package
+        mkdir -p release-package
+        
+        # Copy main application
+        cp -r media_player_ds release-package/
+        
+        # Create installation script
+        cat > release-package/install.sh << 'EOF'
+        #!/bin/bash
+        echo "Installing DSA Media Player..."
+        cd media_player_ds
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        echo "Installation complete!"
+        echo "Run: python main.py"
+        EOF
+        chmod +x release-package/install.sh
+        
+        # Create Windows batch file
+        cat > release-package/install.bat << 'EOF'
+        @echo off
+        echo Installing DSA Media Player...
+        cd media_player_ds
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        echo Installation complete!
+        echo Run: python main.py
+        pause
+        EOF
+        
+        # Create run script
+        cat > release-package/run.sh << 'EOF'
+        #!/bin/bash
+        cd media_player_ds
+        python main.py
+        EOF
+        chmod +x release-package/run.sh
+        
+        # Create Windows run script
+        cat > release-package/run.bat << 'EOF'
+        @echo off
+        cd media_player_ds
+        python main.py
+        EOF
+        
+        # Create release info
+        cat > release-package/RELEASE_INFO.md << EOF
+        # DSA Media Player Release ${{ github.event.inputs.version || github.event.release.tag_name }}
+        
+        ## Installation
+        
+        ### Linux/macOS:
+        \`\`\`bash
+        ./install.sh
+        ./run.sh
+        \`\`\`
+        
+        ### Windows:
+        \`\`\`batch
+        install.bat
+        run.bat
+        \`\`\`
+        
+        ### Manual Installation:
+        \`\`\`bash
+        cd media_player_ds
+        pip install -r requirements.txt
+        python main.py
+        \`\`\`
+        
+        ## Features
+        - Queue-based song creation (FIFO)
+        - BST-based song reading and searching
+        - Hash table-based song updates (O(1))
+        - Stack-based song deletion with undo
+        - Complete CRUD operations with verbose logging
+        - SQLite database persistence
+        - Professional GUI interface
+        
+        ## Testing
+        \`\`\`bash
+        # Test individual data structures
+        python src/ds/queue_create.py
+        python src/ds/bst_read.py
+        python src/ds/hashtable_update.py
+        python src/ds/stack_delete.py
+        
+        # Run unit tests
+        python -m pytest tests/
+        \`\`\`
+        
+        ## System Requirements
+        - Python 3.8 or higher
+        - Tkinter (usually included with Python)
+        - SQLite3 (included with Python)
+        
+        For detailed documentation, see README.md
+        EOF
+        
+        # Create archive
+        tar -czf dsa-media-player-${{ github.event.inputs.version || github.event.release.tag_name }}.tar.gz release-package/
+        zip -r dsa-media-player-${{ github.event.inputs.version || github.event.release.tag_name }}.zip release-package/
+        
+    - name: Upload release artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-artifacts
+        path: |
+          *.tar.gz
+          *.zip
+          media_player_ds/dist/
+
+  test-release:
+    name: Test Release Package
+    runs-on: ubuntu-latest
+    needs: create-release-artifacts
+    
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: release-artifacts
+        
+    - name: Test installation
+      run: |
+        # Extract and test the release package
+        tar -xzf dsa-media-player-*.tar.gz
+        cd release-package
+        
+        # Test installation script
+        bash install.sh
+        
+        # Test that the application can start (without GUI)
+        cd media_player_ds
+        python -c "
+        import sys
+        sys.path.insert(0, '.')
+        try:
+            from src.db.database import init_db
+            from src.model.song import Song
+            init_db()
+            song = Song(title='Test', artist='Test')
+            print('✅ Release package test successful')
+        except Exception as e:
+            print(f'❌ Release package test failed: {e}')
+            sys.exit(1)
+        "
+
+  notify-completion:
+    name: Notify Completion
+    runs-on: ubuntu-latest
+    needs: [create-release-artifacts, test-release]
+    if: always()
+    
+    steps:
+    - name: Release Summary
+      run: |
+        echo "=== Release Summary ==="
+        echo "Version: ${{ github.event.inputs.version || github.event.release.tag_name }}"
+        echo "Artifacts: ${{ needs.create-release-artifacts.result }}"
+        echo "Testing: ${{ needs.test-release.result }}"
+        
+        if [[ "${{ needs.create-release-artifacts.result }}" == "success" && 
+              "${{ needs.test-release.result }}" == "success" ]]; then
+          echo "✅ Release created successfully"
+        else
+          echo "❌ Release creation failed"
+        fi
+        
+        echo ""
+        echo "=== Release Contents ==="
+        echo "- Complete source code package"
+        echo "- Installation scripts (Linux/Windows)"
+        echo "- Run scripts for easy execution"
+        echo "- Comprehensive documentation"
+        echo "- Tested release package"
+        
+        echo ""
+        echo "=== Usage Instructions ==="
+        echo "1. Download release archive from GitHub releases"
+        echo "2. Extract files"
+        echo "3. Run install script for your platform"
+        echo "4. Execute run script to start application"
+        echo "5. Refer to RELEASE_INFO.md for details"

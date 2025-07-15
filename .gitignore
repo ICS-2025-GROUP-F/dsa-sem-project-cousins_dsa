@@ -1,0 +1,13 @@
+media_player_ds/__pycache__/
+media_player_ds/*.pyc
+media_player_ds/venv/
+media_player_ds/.env
+media_player_ds/.idea/
+media_player_ds/.vscode/
+media_player_ds/*.db
+media_player_ds/src/*/*__pycache__*
+media_player_ds/src/*__pycache__*
+initialize.ps1
+media_player_ds/demo/*.mp4
+.vscode/
+.idea/

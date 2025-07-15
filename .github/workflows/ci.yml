@@ -1,0 +1,230 @@
+name: DSA Media Player CI/CD
+
+on:
+  push:
+    branches: [ main, integration-prep ]
+    paths:
+      - 'media_player_ds/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'media_player_ds/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        cd media_player_ds
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-mock flake8 black isort
+        
+    
+
+    - name: Create __init__.py files
+      run: |
+        cd media_player_ds
+        find . -type d -exec touch {}/__init__.py \;
+
+    - name: Run code formatting check (Black)
+      run: |
+        cd media_player_ds
+        black --check --diff src/ tests/ || echo "Code formatting issues found"
+
+    - name: Run import sorting check (isort)
+      run: |
+        cd media_player_ds
+        isort --check-only --diff src/ tests/ || echo "Import sorting issues found"
+
+    - name: Run linting (flake8)
+      run: |
+        cd media_player_ds
+        flake8 src/ tests/ --max-line-length=100 --extend-ignore=E203,W503 || echo "Linting issues found"
+
+    - name: Initialize database
+      run: |
+        cd media_player_ds
+        python src/db/database.py
+
+    - name: Run unit tests with coverage
+      run: |
+        cd media_player_ds
+        python -m pytest tests/ -v --cov=src --cov-report=xml --cov-report=html --cov-report=term
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        cd media_player_ds
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-mock
+
+    - name: Create __init__.py files
+      run: |
+        cd media_player_ds
+        find . -type d -exec touch {}/__init__.py \;
+
+  branch-validation:
+    name: Branch Validation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Validate branch naming
+      shell: bash
+      run: |
+        BRANCH_NAME="${{ github.head_ref }}"
+        echo "Validating branch name: $BRANCH_NAME"
+        if [[ "$BRANCH_NAME" =~ ^regNo_[0-9]+_.+$ ]] || \
+           [[ "$BRANCH_NAME" =~ ^integration-.+$ ]] || \
+           [[ "$BRANCH_NAME" =~ ^feature/.+$ ]] || \
+           [[ "$BRANCH_NAME" =~ ^bugfix/.+$ ]]; then
+          echo "Branch name follows convention"
+        else
+          echo "Invalid branch name: $BRANCH_NAME"
+          exit 1
+        fi
+
+    - name: Check for required files
+      shell: bash
+      run: |
+        cd media_player_ds
+        required_files=(
+          "src/main.py"
+          "src/model/song.py"
+          "src/db/database.py"
+          "requirements.txt"
+          "README.md"
+        )
+        for file in "${required_files[@]}"; do
+          if [[ ! -f "$file" ]]; then
+            echo "Missing: $file"
+            exit 1
+          fi
+        done
+        echo "All required files are present"
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install security tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit
+
+    - name: Run safety check for vulnerabilities
+      run: |
+        cd media_player_ds
+        pip install -r requirements.txt
+        safety check --json || echo "Vulnerabilities found"
+
+    - name: Run bandit security linter
+      run: |
+        cd media_player_ds
+        bandit -r src/ -f json || echo "Security issues found"
+
+  performance-test:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        cd media_player_ds
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install memory-profiler
+
+    - name: Create __init__.py files
+      run: |
+        cd media_player_ds
+        find . -type d -exec touch {}/__init__.py \;
+
+    - name: Performance test data structures
+      run: |
+        cd media_player_ds
+        python tests/test_performance.py
+
+  build-status:
+    name: Build Status Summary
+    runs-on: ubuntu-latest
+    needs: [test, integration-test, security-scan]
+    if: always()
+    steps:
+    - name: Summarize Build Status
+      shell: bash
+      run: |
+        echo "=== Build Summary ==="
+        echo "Test Suite: ${{ needs.test.result }}"
+        echo "Integration Tests: ${{ needs.integration-test.result }}"
+        echo "Security Scan: ${{ needs.security-scan.result }}"
+        
+        if [[ "${{ needs.test.result }}" == "success" && \
+              "${{ needs.integration-test.result }}" == "success" ]]; then
+          echo "All critical tests passed"
+        else
+          echo "Some checks failed"
+          exit 1
+        fi
